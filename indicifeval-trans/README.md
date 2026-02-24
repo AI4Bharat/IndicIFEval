@@ -1,7 +1,7 @@
 # IndicIFEval
 
 ## Dataset Setup
-1. Prepare your input file. Make sure you have a text file at the path `languages/en/pretranslations.txt` with one English wprd/phrase per line.
+1. Prepare your input file. Make sure you have a text file at the path `languages/en/pretranslations.txt` with one English word/phrase per line.
 2. Run `pretranslate.py`:
     - To use the SarvamAI API:
     ```python pretranslate.py hi --use-api --sarvamai_token "YOUR_API_KEY"```
