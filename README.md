@@ -63,7 +63,7 @@ We use the Language Model Evaluation Harness for benchmarking. The `lm-evaluatio
 If you use IndicIFEval in your work, please cite us:
 
 ```bibtex
-@articlec{jayakumar2026indicifeval,
+@article{jayakumar2026indicifeval,
       title={IndicIFEval: A Benchmark for Verifiable Instruction-Following Evaluation in 14 Indic Languages}, 
       author={Thanmay Jayakumar and Mohammed Safi Ur Rahman Khan and Raj Dabre and Ratish Puduppully and Anoop Kunchukuttan},
       year={2026},
