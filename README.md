@@ -60,7 +60,7 @@ We use the Language Model Evaluation Harness for benchmarking. The `lm-evaluatio
 
 ## Citation
 
-If you use MILU in your work, please cite us:
+If you use IndicIFEval in your work, please cite us:
 
 ```bibtex
 @misc{jayakumar2026indicifeval,
