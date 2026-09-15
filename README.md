@@ -58,6 +58,21 @@ The `indicifeval-ground` directory houses the pipeline for synthetically generat
 ### Evaluation
 We use the Language Model Evaluation Harness for benchmarking. The `lm-evaluation-harness` directory contains the custom configurations required for our tasks. You must run the evaluation script specifying the model and the specific task configuration.
 
+#### A note on `indicifeval-ground` vs. `indicifeval-trans` constraint categories
+
+`indicifeval-ground` and `indicifeval-trans` do not use identical evaluation setups, even where a constraint category shares its name or checker code. In particular:
+
+- **Paragraph count + first word.** `indicifeval-trans` tests `num_paragraphs` and `nth_paragraph`/`first_word` together as independent, randomly-sized constraints. In `indicifeval-ground`, this category was simplified to match how the underlying source content was collected: `num_paragraphs` is implicitly fixed at 1 and only the first-word constraint is evaluated. Released `indicifeval-ground` rows therefore omit `num_paragraphs` from `kwargs` for this instruction — this is expected, not missing data.
+- **Exact-count constraints (`keywords:frequency`, `length_constraints:number_sentences`).** `indicifeval-ground` prompts for these two constraint types are always phrased as an exact count (e.g. "the word X must appear **exactly** N times"), reflecting how the source text was mined (documents where a word/sentence count matched a target exactly). The evaluation harness now honors this: when `relation` is omitted in `kwargs` for these two ground checkers, it defaults to an exact-equality comparison rather than randomly choosing "less than"/"at least". `indicifeval-trans`, by contrast, always supplies an explicit `relation` and keeps the original less-than/at-least semantics from IFEval.
+
+#### Known scope limitation: case-sensitivity constraints
+
+Four `indicifeval-trans` source prompts (keys 30, 251, 2807, 3221) ask for an all-lowercase or all-uppercase response but do not carry a matching `change_case` checker in `instruction_id_list` — this gap is inherited unchanged from the original English IFEval release, not introduced by translation. "Lowercase"/"uppercase" is a Latin-script concept with no direct equivalent in the 14 Indic scripts covered here, so their translations cannot be verified the same way English can; we have not attempted to invent a checker for them. Treat these four keys (across all 15 language splits) as a known, unresolved scope limitation pending native-speaker review, rather than silently "fixed" data.
+
+#### Filtering `indicifeval-trans` by translation quality
+
+Not every translated prompt released in `indicifeval-trans` was judged correct by human review. Each row carries a `tags` list that includes exactly one of `correct` or `incorrect` (translation-quality verdict), and optionally `parallel` for the subset of rows that are aligned 1:1 across all 14 languages (used for the paper's cross-lingual comparison). To reproduce paper-reported numbers, filter to rows tagged `correct` (add `parallel` as well if you need the cross-lingual-aligned subset). The `indicifeval-ground` release does not use this tagging scheme.
+
 ## Citation
 
 If you use IndicIFEval in your work, please cite us:

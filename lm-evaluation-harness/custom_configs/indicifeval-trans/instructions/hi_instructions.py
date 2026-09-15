@@ -20,6 +20,7 @@ import logging
 import random
 import re
 import string
+import unicodedata
 from typing import Dict, Optional, Sequence, Union
 import sys
 import pathlib
@@ -1111,6 +1112,19 @@ class KeySentenceChecker(Instruction):
         return count == self._num_sentences
 
 
+def _is_word_char(ch):
+    """Unicode-aware "is this part of a word" check used for forbidden-word
+    boundaries. Unlike \\b/\\w, this also treats combining marks (matras,
+    virama, nuqta, etc.) as part of a word, since \\w does not include
+    Unicode category Mc/Mn and would otherwise report a false boundary in
+    the middle of an Indic grapheme cluster.
+    """
+    if not ch:
+        return False
+    category = unicodedata.category(ch)
+    return category[0] in ("L", "N", "M") or ch == "_"
+
+
 class ForbiddenWords(Instruction):
     """Checks that specified words are not used in response."""
 
@@ -1149,8 +1163,12 @@ class ForbiddenWords(Instruction):
     def check_following(self, value):
         """Check if the response does not contain the expected keywords."""
         for word in self._forbidden_words:
-            if re.search(r"\b" + word + r"\b", value, flags=re.IGNORECASE):
-                return False
+            for match in re.finditer(re.escape(word), value, flags=re.IGNORECASE):
+                start, end = match.span()
+                before = value[start - 1] if start > 0 else ""
+                after = value[end] if end < len(value) else ""
+                if not _is_word_char(before) and not _is_word_char(after):
+                    return False
         return True
 
 
@@ -1377,12 +1395,7 @@ class LetterFrequencyChecker(Instruction):
         Returns:
           A string representing the instruction description.
         """
-        if (
-            not letter
-            or len(letter) > 1
-            or ord(letter.lower()) < 97
-            or ord(letter.lower()) > 122
-        ):
+        if not letter or len(letter) > 1:
             self._letter = random.choice(list(string.ascii_letters))
         else:
             self._letter = letter.strip()

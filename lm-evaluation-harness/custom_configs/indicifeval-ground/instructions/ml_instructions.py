@@ -21,6 +21,7 @@ import logging
 import random
 import re
 import string
+import unicodedata
 from typing import Dict, Optional, Sequence, Union
 
 import langdetect
@@ -36,7 +37,7 @@ _InstructionArgsDtype = Optional[Dict[str, Union[int, str, Sequence[str]]]]
 _LANGUAGES = instructions_util.LANGUAGE_CODES
 
 # The relational operation for comparison.
-_COMPARISON_RELATION = ("less than", "at least")
+_COMPARISON_RELATION = ("less than", "at least", "exactly")
 
 # The maximum number of sentences.
 _MAX_NUM_SENTENCES = 20
@@ -205,7 +206,7 @@ class NumberOfSentences(Instruction):
             self._num_sentences_threshold = random.randint(1, _MAX_NUM_SENTENCES)
 
         if relation is None:
-            self._comparison_relation = random.choice(_COMPARISON_RELATION)
+            self._comparison_relation = "exactly"
         elif relation not in _COMPARISON_RELATION:
             raise ValueError(
                 "The supported relation for comparison must be in "
@@ -251,6 +252,8 @@ class NumberOfSentences(Instruction):
             return num_sentences < self._num_sentences_threshold
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return num_sentences >= self._num_sentences_threshold
+        elif self._comparison_relation == "exactly":
+            return num_sentences == self._num_sentences_threshold
 
 
 class PlaceholderChecker(Instruction):
@@ -591,22 +594,22 @@ class ParagraphChecker(Instruction):
         """Checks the response contains required number of paragraphs.
 
         Args:
-          value: A string representing the response. The response may contain
-            paragraphs that are separated by the markdown divider: `***`.
+          value: A string representing the response. Ground prompts describe
+            paragraphs in natural language (e.g. "first paragraph...",
+            "second paragraph...") rather than asking for a markdown
+            divider, so paragraphs are ordinary text separated by a blank
+            line ("\n\n"), matching ParagraphFirstWordCheck above.
 
         Returns:
           True if the actual number of paragraphs is the same as required;
           otherwise, False.
         """
-        paragraphs = re.split(r"\s?\*\*\*\s?", value)
+        paragraphs = re.split(r"\n\n", value)
         num_paragraphs = len(paragraphs)
 
-        for index, paragraph in enumerate(paragraphs):
+        for paragraph in paragraphs:
             if not paragraph.strip():
-                if index == 0 or index == len(paragraphs) - 1:
-                    num_paragraphs -= 1
-                else:
-                    return False
+                num_paragraphs -= 1
 
         return num_paragraphs == self._num_paragraphs
 
@@ -807,7 +810,7 @@ class KeywordFrequencyChecker(Instruction):
             self._frequency = random.randint(1, _KEYWORD_FREQUENCY)
 
         if relation is None:
-            self._comparison_relation = random.choice(_COMPARISON_RELATION)
+            self._comparison_relation = "exactly"
         elif relation not in _COMPARISON_RELATION:
             raise ValueError(
                 "The supported relation for comparison must be in "
@@ -847,6 +850,8 @@ class KeywordFrequencyChecker(Instruction):
             return actual_occurrences < self._frequency
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return actual_occurrences >= self._frequency
+        elif self._comparison_relation == "exactly":
+            return actual_occurrences == self._frequency
 
 
 class NumberOfWords(Instruction):
@@ -1106,6 +1111,19 @@ class KeySentenceChecker(Instruction):
         return count == self._num_sentences
 
 
+def _is_word_char(ch):
+    """Unicode-aware "is this part of a word" check used for forbidden-word
+    boundaries. Unlike \\b/\\w, this also treats combining marks (matras,
+    virama, nuqta, etc.) as part of a word, since \\w does not include
+    Unicode category Mc/Mn and would otherwise report a false boundary in
+    the middle of an Indic grapheme cluster.
+    """
+    if not ch:
+        return False
+    category = unicodedata.category(ch)
+    return category[0] in ("L", "N", "M") or ch == "_"
+
+
 class ForbiddenWords(Instruction):
     """Checks that specified words are not used in response."""
 
@@ -1144,8 +1162,12 @@ class ForbiddenWords(Instruction):
     def check_following(self, value):
         """Check if the response does not contain the expected keywords."""
         for word in self._forbidden_words:
-            if re.search(r"\b" + word + r"\b", value, flags=re.IGNORECASE):
-                return False
+            for match in re.finditer(re.escape(word), value, flags=re.IGNORECASE):
+                start, end = match.span()
+                before = value[start - 1] if start > 0 else ""
+                after = value[end] if end < len(value) else ""
+                if not _is_word_char(before) and not _is_word_char(after):
+                    return False
         return True
 
 
